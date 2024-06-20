@@ -198,6 +198,10 @@ find_eprosima_package(fastcdr)
 find_eprosima_thirdparty(Asio asio)
 find_eprosima_thirdparty(TinyXML2 tinyxml2)
 
+set(ASIO_INCLUDE_DIR ${asio_INCLUDE_DIR})
+set(TINYXML2_INCLUDE_DIR ${tinyxml2_INCLUDE_DIR})
+set(TINYXML2_LIBRARY ${tinyxml2_LIBRARY})
+
 if(ANDROID)
     find_eprosima_thirdparty(android-ifaddrs android-ifaddrs)
 endif()

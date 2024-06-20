@@ -23,6 +23,7 @@
 #include "../messages/RTPSMessageGroup.h"
 #include "../attributes/WriterAttributes.h"
 #include <vector>
+#include <functional>
 #include <memory>
 
 namespace eprosima {

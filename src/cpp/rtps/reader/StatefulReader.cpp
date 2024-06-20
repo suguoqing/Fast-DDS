@@ -29,6 +29,8 @@
 #include "FragmentedChangePitStop.h"
 #include <fastrtps/utils/TimeConversion.h>
 
+#include <sys/time.h>
+
 #include <mutex>
 #include <thread>
 
@@ -70,7 +72,7 @@ bool StatefulReader::matched_writer_add(RemoteWriterAttributes& wdata)
         if((*it)->m_att.guid == wdata.guid)
         {
             logInfo(RTPS_READER,"Attempting to add existing writer");
-            return false;
+            return true;
         }
     }
     WriterProxy* wp = new WriterProxy(wdata, this);
@@ -296,11 +298,14 @@ bool StatefulReader::processDataFragMsg(CacheChange_t *incomingChange, uint32_t 
                 }
             }
 #endif
-
             // Fragments manager has to process incomming fragments.
             // If CacheChange_t is completed, it will be returned;
-            CacheChange_t* change_completed = fragmentedChangePitStop_->process(change_to_add, sampleSize, fragmentStartingNum);
-
+            bool has_hole = false;
+            CacheChange_t *orig_change;
+            CacheChange_t* change_completed = fragmentedChangePitStop_->process(change_to_add, sampleSize, fragmentStartingNum, has_hole, orig_change);
+            //if (has_hole) {
+                //sendFragAck(pWP, orig_change);
+            //}
 #if HAVE_SECURITY
             if(is_payload_protected())
                 releaseCache(change_to_add);
@@ -706,4 +711,49 @@ bool StatefulReader::isInCleanState() const
     }
 
     return cleanState;
+}
+
+void StatefulReader::sendFragAck(WriterProxy *mp_WP, CacheChange_t * cit) {
+    RTPSMessageGroup_t m_cdrmessages(mp_WP->mp_SFR->getRTPSParticipant()->getMaxMessageSize(),
+            mp_WP->mp_SFR->getRTPSParticipant()->getGuid().guidPrefix);
+
+    std::lock_guard<std::recursive_mutex> guard(*mp_WP->mp_SFR->getMutex());
+    RTPSMessageGroup group(mp_WP->mp_SFR->getRTPSParticipant(), mp_WP->mp_SFR, RTPSMessageGroup::READER, m_cdrmessages);
+    LocatorList_t locators(mp_WP->m_att.endpoint.unicastLocatorList);
+
+    {
+        FragmentNumberSet_t frag_sns;
+
+        //  Search first fragment not present.
+        uint32_t frag_num = 0;
+        auto fit = cit->getDataFragments()->begin();
+        for(; fit != cit->getDataFragments()->end(); ++fit)
+        {
+            ++frag_num;
+            if(*fit == ChangeFragmentStatus_t::NOT_PRESENT)
+                break;
+        }
+
+        // Never should happend.
+        assert(frag_num != 0);
+        assert(fit != cit->getDataFragments()->end());
+
+        // Store FragmentNumberSet_t base.
+        frag_sns.base = frag_num;
+
+        // Fill the FragmentNumberSet_t bitmap.
+        for(; fit != cit->getDataFragments()->end(); ++fit)
+        {
+            if(*fit == ChangeFragmentStatus_t::NOT_PRESENT) {
+                frag_sns.add(frag_num);
+            } else {
+                break;
+            }
+            ++frag_num;
+        }
+
+        ++mp_WP->m_nackfragCount;
+        group.add_nackfrag(mp_WP->m_att.guid, cit->sequenceNumber, frag_sns, mp_WP->m_nackfragCount, locators);
+   }
+
 }

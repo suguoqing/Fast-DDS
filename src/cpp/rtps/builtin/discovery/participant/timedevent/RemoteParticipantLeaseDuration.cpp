@@ -73,7 +73,11 @@ void RemoteParticipantLeaseDuration::event(EventCode code, const char* msg)
         mp_participantProxyData->mp_mutex->lock();
         mp_participantProxyData->mp_leaseDurationTimer = nullptr;
         mp_participantProxyData->mp_mutex->unlock();
-        mp_PDP->removeRemoteParticipant(mp_participantProxyData->m_guid);
+
+        {
+          std::lock_guard<std::recursive_mutex> guard(*mp_PDP->getMutex());
+          mp_PDP->removeRemoteParticipant(mp_participantProxyData->m_guid);
+        }
 
         if(mp_PDP->getRTPSParticipant()->getListener()!=nullptr)
             mp_PDP->getRTPSParticipant()->getListener()->onRTPSParticipantDiscovery(

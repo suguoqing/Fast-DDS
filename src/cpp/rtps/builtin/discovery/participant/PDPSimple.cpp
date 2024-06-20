@@ -221,7 +221,8 @@ void PDPSimple::announceParticipantState(bool new_change, bool dispose)
 {
     logInfo(RTPS_PDP,"Announcing RTPSParticipant State (new change: "<< new_change <<")");
     CacheChange_t* change = nullptr;
-
+    bool unsent_change = false;
+  {
     std::lock_guard<std::recursive_mutex> guardPDP(*this->mp_mutex);
 
     if(!dispose)
@@ -257,7 +258,8 @@ void PDPSimple::announceParticipantState(bool new_change, bool dispose)
         }
         else
         {
-            mp_SPDPWriter->unsent_changes_reset();
+            unsent_change = true;
+            //mp_SPDPWriter->unsent_changes_reset();
         }
     }
     else
@@ -286,7 +288,10 @@ void PDPSimple::announceParticipantState(bool new_change, bool dispose)
             mp_SPDPWriterHistory->add_change(change);
         }
     }
-
+  }
+    if (unsent_change) {
+        mp_SPDPWriter->unsent_changes_reset();
+    }
 }
 
 bool PDPSimple::lookupReaderProxyData(const GUID_t& reader, ReaderProxyData** rdata, ParticipantProxyData** pdata)
@@ -549,6 +554,7 @@ void PDPSimple::assignRemoteEndpoints(ParticipantProxyData* pdata)
     uint32_t auxendp = endp;
     auxendp &=DISC_BUILTIN_ENDPOINT_PARTICIPANT_ANNOUNCER;
     // TODO Review because the mutex is already take in PDPSimpleListener.
+    std::lock_guard<std::recursive_mutex> guard_pdpsimple(*mp_mutex);
     std::lock_guard<std::recursive_mutex> guard(*pdata->mp_mutex);
     if(auxendp!=0)
     {
@@ -637,6 +643,7 @@ bool PDPSimple::removeRemoteParticipant(GUID_t& partGUID)
             break;
         }
     }
+    guardPDP.unlock();
 
     if(pdata !=nullptr)
     {
@@ -672,7 +679,7 @@ bool PDPSimple::removeRemoteParticipant(GUID_t& partGUID)
         }
         pdata->mp_mutex->unlock();
 
-        guardPDP.unlock();
+        //guardPDP.unlock();
         guardW.unlock();
         guardR.unlock();
 

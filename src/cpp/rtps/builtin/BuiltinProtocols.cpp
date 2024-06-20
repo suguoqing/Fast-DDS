@@ -53,10 +53,12 @@ BuiltinProtocols::~BuiltinProtocols() {
     if(mp_PDP != nullptr)
         mp_PDP->announceParticipantState(true, true);
     // TODO Auto-generated destructor stub
-    if(mp_WLP!=nullptr)
-        delete(mp_WLP);
     if(mp_PDP!=nullptr)
         delete(mp_PDP);
+
+    // last destroy, since PDP proxy data will use
+    if(mp_WLP!=nullptr)
+        delete(mp_WLP);
 }
 
 

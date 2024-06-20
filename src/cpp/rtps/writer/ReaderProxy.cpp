@@ -198,6 +198,13 @@ void ReaderProxy::set_change_to_status(const SequenceNumber_t& seq_num, ChangeFo
     auto it = m_changesForReader.find(ChangeForReader_t(seq_num));
     bool mustWakeUpAsyncThread = false;
 
+    if ((m_att.endpoint.reliabilityKind != RELIABLE)
+        && (status == ACKNOWLEDGED)) {
+        if (it != m_changesForReader.end()) {
+          m_changesForReader.erase(m_changesForReader.begin(), it);
+        }
+    }
+
     if(it != m_changesForReader.end())
     {
         if(status == ACKNOWLEDGED && it == m_changesForReader.begin())
@@ -300,6 +307,7 @@ void ReaderProxy::setNotValid(CacheChange_t* change)
     // Element must be in the container. In other case, bug.
     assert(chit != m_changesForReader.end());
 
+#if 0
     if(chit == m_changesForReader.begin())
     {
         assert(chit->getStatus() != ACKNOWLEDGED);
@@ -327,6 +335,11 @@ void ReaderProxy::setNotValid(CacheChange_t* change)
 
         m_changesForReader.insert(hint, newch);
     }
+#endif
+
+    m_changesForReader.erase(chit);
+    if (changesFromRLowMark_ < change->sequenceNumber)
+        changesFromRLowMark_ = change->sequenceNumber;
 }
 
 bool ReaderProxy::thereIsUnacknowledged() const

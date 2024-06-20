@@ -40,6 +40,7 @@ namespace fastrtps {
 
 std::vector<Domain::t_p_Participant> Domain::m_participants;
 bool Domain::default_xml_profiles_loaded = false;
+std::mutex Domain::m_lock;
 
 
 Domain::Domain()
@@ -55,6 +56,7 @@ Domain::~Domain()
 
 void Domain::stopAll()
 {
+    std::lock_guard<std::mutex> guard(m_lock);
     while(m_participants.size()>0)
     {
         Domain::removeParticipant(m_participants.begin()->first);
@@ -65,6 +67,7 @@ void Domain::stopAll()
 
 bool Domain::removeParticipant(Participant* part)
 {
+    std::lock_guard<std::mutex> guard(m_lock);
     if(part!=nullptr)
     {
         for(auto it = m_participants.begin();it!= m_participants.end();++it)
@@ -83,6 +86,7 @@ bool Domain::removeParticipant(Participant* part)
 
 bool Domain::removePublisher(Publisher* pub)
 {
+    std::lock_guard<std::mutex> guard(m_lock);
     if(pub!=nullptr)
     {
         for(auto it = m_participants.begin();it!= m_participants.end();++it)
@@ -99,6 +103,7 @@ bool Domain::removePublisher(Publisher* pub)
 
 bool Domain::removeSubscriber(Subscriber* sub)
 {
+    std::lock_guard<std::mutex> guard(m_lock);
     if(sub!=nullptr)
     {
         for(auto it = m_participants.begin();it!= m_participants.end();++it)
@@ -132,6 +137,7 @@ Participant* Domain::createParticipant(const std::string &participant_profile, P
 
 Participant* Domain::createParticipant(ParticipantAttributes& att,ParticipantListener* listen)
 {
+    std::lock_guard<std::mutex> guard(m_lock);
     Participant* pubsubpar = new Participant();
     ParticipantImpl* pspartimpl = new ParticipantImpl(att,pubsubpar,listen);
     RTPSParticipant* part = RTPSDomain::createParticipant(att.rtps,&pspartimpl->m_rtps_listener);
@@ -165,6 +171,7 @@ Publisher* Domain::createPublisher(Participant *part, const std::string &publish
 
 Publisher* Domain::createPublisher(Participant *part, PublisherAttributes &att, PublisherListener *listen)
 {
+    std::lock_guard<std::mutex> guard(m_lock);
     for (auto it = m_participants.begin(); it != m_participants.end(); ++it)
     {
         if(it->second->getGuid() == part->getGuid())
@@ -189,6 +196,7 @@ Subscriber* Domain::createSubscriber(Participant *part, const std::string &subsc
 
 Subscriber* Domain::createSubscriber(Participant *part, SubscriberAttributes &att, SubscriberListener *listen)
 {
+    std::lock_guard<std::mutex> guard(m_lock);
     for (auto it = m_participants.begin(); it != m_participants.end(); ++it)
     {
         if(it->second->getGuid() == part->getGuid())
@@ -201,6 +209,7 @@ Subscriber* Domain::createSubscriber(Participant *part, SubscriberAttributes &at
 
 bool Domain::getRegisteredType(Participant* part, const char* typeName, TopicDataType** type)
 {
+    std::lock_guard<std::mutex> guard(m_lock);
     for (auto it = m_participants.begin(); it != m_participants.end();++it)
     {
         if(it->second->getGuid() == part->getGuid())
@@ -213,6 +222,7 @@ bool Domain::getRegisteredType(Participant* part, const char* typeName, TopicDat
 
 bool Domain::registerType(Participant* part, TopicDataType* type)
 {
+    std::lock_guard<std::mutex> guard(m_lock);
     //TODO El registro debería hacerse de manera que no tengamos un objeto del usuario sino que tengamos un objeto TopicDataTYpe propio para que no
     //haya problemas si el usuario lo destruye antes de tiempo.
     for (auto it = m_participants.begin(); it != m_participants.end();++it)
@@ -227,6 +237,7 @@ bool Domain::registerType(Participant* part, TopicDataType* type)
 
 bool Domain::unregisterType(Participant* part, const char* typeName)
 {
+    std::lock_guard<std::mutex> guard(m_lock);
     //TODO El registro debería hacerse de manera que no tengamos un objeto del usuario sino que tengamos un objeto TopicDataTYpe propio para que no
     //haya problemas si el usuario lo destruye antes de tiempo.
     for (auto it = m_participants.begin(); it != m_participants.end();++it)

@@ -72,6 +72,7 @@ void EDPSimplePUBListener::onNewCacheChangeAdded(RTPSReader* /*reader*/, const C
             //LOOK IF IS AN UPDATED INFORMATION
             WriterProxyData* wdata = nullptr;
             ParticipantProxyData* pdata = nullptr;
+            std::lock_guard<std::recursive_mutex> pguard(*mp_SEDP->mp_PDP->getMutex());
             if(this->mp_SEDP->mp_PDP->addWriterProxyData(&writerProxyData,true,&wdata,&pdata)) //ADDED NEW DATA
             {
                 //CHECK the locators:
@@ -207,6 +208,7 @@ void EDPSimpleSUBListener::onNewCacheChangeAdded(RTPSReader* /*reader*/, const C
             //LOOK IF IS AN UPDATED INFORMATION
             ReaderProxyData* rdata = nullptr;
             ParticipantProxyData* pdata = nullptr;
+            std::lock_guard<std::recursive_mutex> pguard(*mp_SEDP->mp_PDP->getMutex());
             if(this->mp_SEDP->mp_PDP->addReaderProxyData(&readerProxyData,true,&rdata,&pdata)) //ADDED NEW DATA
             {
                 pdata->mp_mutex->lock();

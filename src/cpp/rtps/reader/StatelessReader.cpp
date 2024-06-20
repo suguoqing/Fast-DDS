@@ -209,7 +209,9 @@ bool StatelessReader::processDataMsg(CacheChange_t *change)
 
             if(getGuid().entityId == c_EntityId_SPDPReader)
             {
+                lock.unlock();
                 mp_RTPSParticipant->assertRemoteRTPSParticipantLiveliness(change->writerGUID.guidPrefix);
+                lock.lock();
             }
         }
     }
@@ -232,7 +234,9 @@ bool StatelessReader::processDataFragMsg(CacheChange_t *incomingChange, uint32_t
 
             // Fragments manager has to process incomming fragments.
             // If CacheChange_t is completed, it will be returned;
-            CacheChange_t* change_completed = fragmentedChangePitStop_->process(incomingChange, sampleSize, fragmentStartingNum);
+            bool has_hole = false;
+            CacheChange_t* tmp_cache;
+            CacheChange_t* change_completed = fragmentedChangePitStop_->process(incomingChange, sampleSize, fragmentStartingNum, has_hole, tmp_cache);
 
             // Try to remove previous CacheChange_t from PitStop.
             fragmentedChangePitStop_->try_to_remove_until(incomingChange->sequenceNumber, incomingChange->writerGUID);
@@ -276,7 +280,9 @@ bool StatelessReader::processDataFragMsg(CacheChange_t *incomingChange, uint32_t
                     // Assert liveliness because if it is a participant discovery info.
                     if (getGuid().entityId == c_EntityId_SPDPReader)
                     {
+                        lock.unlock();
                         mp_RTPSParticipant->assertRemoteRTPSParticipantLiveliness(incomingChange->writerGUID.guidPrefix);
+                        lock.lock();
                     }
 
                     // Release CacheChange_t.

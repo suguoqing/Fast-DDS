@@ -15,6 +15,7 @@
 #include <chrono>
 
 #include "deadlineQoS.h"
+#include <functional>
 #include <string>
 
 using namespace asio;

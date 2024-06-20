@@ -75,6 +75,7 @@ bool EDP::newLocalReaderProxyData(RTPSReader* reader,TopicAttributes& att, Reade
     reader->m_acceptMessagesFromUnkownWriters = false;
     //ADD IT TO THE LIST OF READERPROXYDATA
     ParticipantProxyData* pdata = nullptr;
+    std::lock_guard<std::recursive_mutex> pguard(*mp_PDP->getMutex());
     if(!this->mp_PDP->addReaderProxyData(rpd, false, nullptr, &pdata))
     {
         delete(rpd);
@@ -106,6 +107,7 @@ bool EDP::newLocalWriterProxyData(RTPSWriter* writer,TopicAttributes& att, Write
     wpd->userDefinedId(writer->getAttributes()->getUserDefinedID());
     //ADD IT TO THE LIST OF READERPROXYDATA
     ParticipantProxyData* pdata = nullptr;
+    std::lock_guard<std::recursive_mutex> pguard(*mp_PDP->getMutex());
     if(!this->mp_PDP->addWriterProxyData(wpd, false, nullptr, &pdata))
     {
         delete(wpd);
@@ -123,6 +125,7 @@ bool EDP::updatedLocalReader(RTPSReader* R,ReaderQos& rqos)
 {
     ParticipantProxyData* pdata = nullptr;
     ReaderProxyData* rdata = nullptr;
+    std::lock_guard<std::recursive_mutex> pguard(*mp_PDP->getMutex());
     if(this->mp_PDP->lookupReaderProxyData(R->getGuid(),&rdata, &pdata))
     {
         rdata->m_qos.setQos(rqos,false);
@@ -140,6 +143,7 @@ bool EDP::updatedLocalWriter(RTPSWriter* W,WriterQos& wqos)
 {
     ParticipantProxyData* pdata = nullptr;
     WriterProxyData* wdata = nullptr;
+    std::lock_guard<std::recursive_mutex> pguard(*mp_PDP->getMutex());
     if(this->mp_PDP->lookupWriterProxyData(W->getGuid(),&wdata, &pdata))
     {
         wdata->m_qos.setQos(wqos,false);
@@ -159,6 +163,7 @@ bool EDP::removeWriterProxy(const GUID_t& writer)
     ParticipantProxyData* pdata = nullptr;
     WriterProxyData* wdata = nullptr;
     // Block because other thread can be removing the participant.
+    //std::lock_guard<std::recursive_mutex> guard(*mp_RTPSParticipant->getParticipantMutex());
     std::lock_guard<std::recursive_mutex> pguard(*mp_PDP->getMutex());
     if(this->mp_PDP->lookupWriterProxyData(writer,&wdata, &pdata))
     {
@@ -176,6 +181,7 @@ bool EDP::removeReaderProxy(const GUID_t& reader)
     ParticipantProxyData* pdata = nullptr;
     ReaderProxyData* rdata = nullptr;
     // Block because other thread can be removing the participant.
+    //std::lock_guard<std::recursive_mutex> guard(*mp_RTPSParticipant->getParticipantMutex());
     std::lock_guard<std::recursive_mutex> pguard(*mp_PDP->getMutex());
     if(this->mp_PDP->lookupReaderProxyData(reader,&rdata, &pdata))
     {
@@ -432,10 +438,10 @@ bool EDP::pairingReader(RTPSReader* R)
 {
     ParticipantProxyData* pdata = nullptr;
     ReaderProxyData* rdata = nullptr;
+    std::lock_guard<std::recursive_mutex> pguard(*mp_PDP->getMutex());
     if(this->mp_PDP->lookupReaderProxyData(R->getGuid(),&rdata, &pdata))
     {
         logInfo(RTPS_EDP,R->getGuid()<<" in topic: \"" << rdata->topicName() <<"\"");
-        std::lock_guard<std::recursive_mutex> pguard(*mp_PDP->getMutex());
         for(std::vector<ParticipantProxyData*>::const_iterator pit = mp_PDP->ParticipantProxiesBegin();
                 pit!=mp_PDP->ParticipantProxiesEnd();++pit)
         {
@@ -515,10 +521,10 @@ bool EDP::pairingWriter(RTPSWriter* W)
 {
     ParticipantProxyData* pdata = nullptr;
     WriterProxyData* wdata = nullptr;
+    std::lock_guard<std::recursive_mutex> pguard(*mp_PDP->getMutex());
     if(this->mp_PDP->lookupWriterProxyData(W->getGuid(),&wdata, &pdata))
     {
         logInfo(RTPS_EDP, W->getGuid() << " in topic: \"" << wdata->topicName() <<"\"");
-        std::lock_guard<std::recursive_mutex> pguard(*mp_PDP->getMutex());
         for(std::vector<ParticipantProxyData*>::const_iterator pit = mp_PDP->ParticipantProxiesBegin();
                 pit!=mp_PDP->ParticipantProxiesEnd();++pit)
         {
@@ -609,6 +615,7 @@ bool EDP::pairingReaderProxy(ParticipantProxyData* pdata, ReaderProxyData* rdata
         lock.unlock();
         ParticipantProxyData* wpdata = nullptr;
         WriterProxyData* wdata = nullptr;
+        std::lock_guard<std::recursive_mutex> pguard(*mp_PDP->getMutex());
         if(mp_PDP->lookupWriterProxyData(writerGUID,&wdata, &wpdata))
         {
             std::unique_lock<std::recursive_mutex> plock(*pdata->mp_mutex);
@@ -769,6 +776,7 @@ bool EDP::pairingWriterProxy(ParticipantProxyData *pdata, WriterProxyData* wdata
         lock.unlock();
         ParticipantProxyData* rpdata = nullptr;
         ReaderProxyData* rdata = nullptr;
+        std::lock_guard<std::recursive_mutex> pguard(*mp_PDP->getMutex());
         if(mp_PDP->lookupReaderProxyData(readerGUID, &rdata, &rpdata))
         {
             std::unique_lock<std::recursive_mutex> plock(*pdata->mp_mutex);

@@ -45,10 +45,12 @@ namespace rtps {
 
 
 
-void PDPSimpleListener::onNewCacheChangeAdded(RTPSReader* reader, const CacheChange_t* const change_in)
+void PDPSimpleListener::onNewCacheChangeAdded(RTPSReader* /*reader*/, const CacheChange_t* const change_in)
 {
+    ParticipantProxyData m_ParticipantProxyData;
     CacheChange_t* change = (CacheChange_t*)(change_in);
-    std::lock_guard<std::recursive_mutex> rguard(*reader->getMutex());
+    //std::lock_guard<std::recursive_mutex> rguard(*reader->getMutex());
+
     logInfo(RTPS_PDP,"SPDP Message received");
     if(change->instanceHandle == c_InstanceHandle_Unknown)
     {
@@ -81,6 +83,10 @@ void PDPSimpleListener::onNewCacheChangeAdded(RTPSReader* reader, const CacheCha
             //LOOK IF IS AN UPDATED INFORMATION
             ParticipantProxyData* pdata_ptr = nullptr;
             bool found = false;
+            RTPSParticipantDiscoveryInfo info;
+
+            //lock mp_SPDP mutex.
+            {
             std::lock_guard<std::recursive_mutex> guard(*mp_SPDP->getMutex());
             for (auto it = mp_SPDP->m_participantProxies.begin();
                     it != mp_SPDP->m_participantProxies.end();++it)
@@ -92,29 +98,11 @@ void PDPSimpleListener::onNewCacheChangeAdded(RTPSReader* reader, const CacheCha
                     break;
                 }
             }
-            RTPSParticipantDiscoveryInfo info;
             info.m_guid = m_ParticipantProxyData.m_guid;
             info.m_RTPSParticipantName = m_ParticipantProxyData.m_participantName;
             info.m_propertyList = m_ParticipantProxyData.m_properties.properties;
             info.m_userData = m_ParticipantProxyData.m_userData;
-            if(!found)
-            {
-                info.m_status = DISCOVERED_RTPSPARTICIPANT;
-                //IF WE DIDNT FOUND IT WE MUST CREATE A NEW ONE
-                ParticipantProxyData* pdata = new ParticipantProxyData();
-                std::lock_guard<std::recursive_mutex> pguard(*pdata->mp_mutex);
-                pdata->copy(m_ParticipantProxyData);
-                pdata_ptr = pdata;
-                pdata_ptr->isAlive = true;
-                pdata_ptr->mp_leaseDurationTimer = new RemoteParticipantLeaseDuration(mp_SPDP,
-                        pdata_ptr,
-                        TimeConv::Time_t2MilliSecondsDouble(pdata_ptr->m_leaseDuration));
-                pdata_ptr->mp_leaseDurationTimer->restart_timer();
-                this->mp_SPDP->m_participantProxies.push_back(pdata_ptr);
-                mp_SPDP->assignRemoteEndpoints(pdata_ptr);
-                mp_SPDP->announceParticipantState(false);
-            }
-            else
+            if (found)
             {
                 info.m_status = CHANGED_QOS_RTPSPARTICIPANT;
                 std::lock_guard<std::recursive_mutex> pguard(*pdata_ptr->mp_mutex);
@@ -122,6 +110,28 @@ void PDPSimpleListener::onNewCacheChangeAdded(RTPSReader* reader, const CacheCha
                 if(mp_SPDP->m_discovery.use_STATIC_EndpointDiscoveryProtocol)
                     mp_SPDP->mp_EDP->assignRemoteEndpoints(&m_ParticipantProxyData);
             }
+            }  // mp_SPDP lock guard end.
+
+            if(!found)
+            {
+                info.m_status = DISCOVERED_RTPSPARTICIPANT;
+                //IF WE DIDNT FOUND IT WE MUST CREATE A NEW ONE
+                ParticipantProxyData* pdata = new ParticipantProxyData();
+                pdata->copy(m_ParticipantProxyData);
+                pdata_ptr = pdata;
+                pdata_ptr->isAlive = true;
+                pdata_ptr->mp_leaseDurationTimer = new RemoteParticipantLeaseDuration(mp_SPDP,
+                        pdata_ptr,
+                        TimeConv::Time_t2MilliSecondsDouble(pdata_ptr->m_leaseDuration));
+                pdata_ptr->mp_leaseDurationTimer->restart_timer();
+                {
+                std::lock_guard<std::recursive_mutex> guard(*mp_SPDP->getMutex());
+                this->mp_SPDP->m_participantProxies.push_back(pdata_ptr);
+                mp_SPDP->assignRemoteEndpoints(pdata_ptr);
+                }
+                mp_SPDP->announceParticipantState(false);
+            }
+
             if(this->mp_SPDP->getRTPSParticipant()->getListener()!=nullptr)
                 this->mp_SPDP->getRTPSParticipant()->getListener()->onRTPSParticipantDiscovery(
                         this->mp_SPDP->getRTPSParticipant()->getUserRTPSParticipant(),
@@ -133,7 +143,11 @@ void PDPSimpleListener::onNewCacheChangeAdded(RTPSReader* reader, const CacheCha
     {
         GUID_t guid;
         iHandle2GUID(guid,change->instanceHandle);
-        this->mp_SPDP->removeRemoteParticipant(guid);
+        {
+          std::lock_guard<std::recursive_mutex> guard(*mp_SPDP->getMutex());
+          this->mp_SPDP->removeRemoteParticipant(guid);
+        }
+
         RTPSParticipantDiscoveryInfo info;
         info.m_status = REMOVED_RTPSPARTICIPANT;
         info.m_guid = guid;
@@ -151,10 +165,14 @@ void PDPSimpleListener::onNewCacheChangeAdded(RTPSReader* reader, const CacheCha
 
 bool PDPSimpleListener::getKey(CacheChange_t* change)
 {
+	CDRMessage_t aux_msg;
 	SerializedPayload_t* pl = &change->serializedPayload;
 	CDRMessage::initCDRMsg(&aux_msg);
-    // TODO CHange because it create a buffer to remove after.
-    free(aux_msg.buffer);
+
+        if (aux_msg.buffer) {
+          // TODO CHange because it create a buffer to remove after.
+          free(aux_msg.buffer);
+        }
 	aux_msg.buffer = pl->data;
 	aux_msg.length = pl->length;
 	aux_msg.max_size = pl->max_size;

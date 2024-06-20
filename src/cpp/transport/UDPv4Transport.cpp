@@ -30,7 +30,7 @@ static const uint32_t maximumMessageSize = 65500;
 static const uint32_t minimumSocketBuffer = 65536;
 static const uint8_t defaultTTL = 1;
 
-static void GetIP4s(vector<IPFinder::info_IP>& locNames, bool return_loopback = false)
+static void GetIP4s(vector<IPFinder::info_IP>& locNames, bool return_loopback = true)
 {
     IPFinder::getIPs(&locNames, return_loopback);
     auto newEnd = remove_if(locNames.begin(),
@@ -106,7 +106,6 @@ bool UDPv4Transport::init()
             socket_base::send_buffer_size option;
             socket.get_option(option);
             mConfiguration_.sendBufferSize = option.value();
-
             if(mConfiguration_.sendBufferSize < minimumSocketBuffer)
             {
                 mConfiguration_.sendBufferSize = minimumSocketBuffer;
@@ -210,11 +209,15 @@ bool UDPv4Transport::OpenInputChannel(const Locator_t& locator)
         for (const auto& infoIP : locNames)
         {
             auto ip = asio::ip::address_v4::from_string(infoIP.name);
+            try {
 #if defined(ASIO_HAS_MOVE)
-            socket.set_option(ip::multicast::join_group(ip::address_v4::from_string(locator.to_IP4_string()), ip));
+                socket.set_option(ip::multicast::join_group(ip::address_v4::from_string(locator.to_IP4_string()), ip));
 #else
-            socket->set_option(ip::multicast::join_group(ip::address_v4::from_string(locator.to_IP4_string()), ip));
+                socket->set_option(ip::multicast::join_group(ip::address_v4::from_string(locator.to_IP4_string()), ip));
 #endif
+            } catch (std::exception &e) {
+                logWarning(RTPS_MSG_OUT, "Ignore nic bind mutiple ips error.");
+            }
         }
     }
 
@@ -413,6 +416,10 @@ asio::ip::udp::socket UDPv4Transport::OpenAndBindUnicastOutputSocket(const ip::a
 {
     ip::udp::socket socket(mService);
     socket.open(ip::udp::v4());
+    if (mSendBufferSize < (1 << 20)) {
+        mSendBufferSize = 1 << 20;
+    }
+
     if(mSendBufferSize != 0)
         socket.set_option(socket_base::send_buffer_size(mSendBufferSize));
     socket.set_option(ip::multicast::hops(mConfiguration_.TTL));
@@ -448,6 +455,10 @@ asio::ip::udp::socket UDPv4Transport::OpenAndBindInputSocket(uint32_t port, bool
 {
     ip::udp::socket socket(mService);
     socket.open(ip::udp::v4());
+    if (mReceiveBufferSize < 1 << 20) {
+        mReceiveBufferSize = 1 << 20;
+    }
+
     if(mReceiveBufferSize != 0)
         socket.set_option(socket_base::receive_buffer_size(mReceiveBufferSize));
     if(is_multicast)
